@@ -1,36 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 龙蛋计划（MVP）
 
-## Getting Started
+一个 AI 求职申请 Copilot：基于 **职位描述（JD）** + **基础简历** 生成结构化的定制建议与改写对照。
 
-First, run the development server:
+## 本地运行
+
+1) 安装依赖
+
+```bash
+npm install
+```
+
+2) 配置环境变量
+
+- 复制 `.env.example` 为 `.env.local`
+- 填入你的 OpenAI Key：
+
+```bash
+OPENAI_API_KEY=你的key
+```
+
+3) 启动开发服务器
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+打开 `http://localhost:3000`。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 核心页面（当前 MVP）
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `/new`：粘贴 JD + 基础简历，提交后跳转
+- `/tailor`：服务端调用 OpenAI Responses API 返回结构化“定制结果”（失败会自动回退到规则模拟）
+- `/dashboard`：投递记录（当前仅演示，无数据库）
