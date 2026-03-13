@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Script from "next/script";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
@@ -230,6 +231,7 @@ export default async function DashboardPage({
         <section className="mt-10 space-y-4">
           {records.map((record) => {
             const materialStatus = buildMaterialStatus(record);
+            const tailoredBulletsText = record.tailored_bullets.join("\n");
 
             return (
               <div
@@ -334,16 +336,85 @@ export default async function DashboardPage({
                           rel="noreferrer"
                           className="inline-flex rounded-xl border border-sky-700/80 px-4 py-2 text-sm font-medium text-sky-300 transition hover:border-sky-500 hover:text-sky-200"
                         >
-                          去申请
+                          Open Application
                         </a>
                         <p className="mt-2 break-all text-xs text-neutral-500">
                           {record.application_link}
                         </p>
                       </div>
                     ) : (
-                      <p className="mt-1 text-sm text-neutral-500">未提供申请链接</p>
+                      <span className="mt-2 inline-flex rounded-xl border border-neutral-800 px-4 py-2 text-sm text-neutral-500">
+                        无申请链接
+                      </span>
                     )}
                   </div>
+
+                  <details className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
+                    <summary className="cursor-pointer list-none text-sm font-medium text-neutral-200">
+                      查看已保存材料
+                    </summary>
+                    <div className="mt-4 space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs text-neutral-500">邮件主题</p>
+                          {record.email_subject ? (
+                            <button
+                              type="button"
+                              data-copy-text={record.email_subject}
+                              className="rounded-lg border border-neutral-700 px-2 py-1 text-xs text-neutral-300 transition hover:border-neutral-500 hover:text-white"
+                            >
+                              复制
+                            </button>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 text-sm text-neutral-100">
+                          {record.email_subject || "未保存邮件主题"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs text-neutral-500">邮件正文</p>
+                          {record.email_body ? (
+                            <button
+                              type="button"
+                              data-copy-text={record.email_body}
+                              className="rounded-lg border border-neutral-700 px-2 py-1 text-xs text-neutral-300 transition hover:border-neutral-500 hover:text-white"
+                            >
+                              复制
+                            </button>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-neutral-300">
+                          {record.email_body || "未保存邮件正文"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs text-neutral-500">定制简历要点</p>
+                          {tailoredBulletsText ? (
+                            <button
+                              type="button"
+                              data-copy-text={tailoredBulletsText}
+                              className="rounded-lg border border-neutral-700 px-2 py-1 text-xs text-neutral-300 transition hover:border-neutral-500 hover:text-white"
+                            >
+                              复制
+                            </button>
+                          ) : null}
+                        </div>
+                        {record.tailored_bullets.length > 0 ? (
+                          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-neutral-300">
+                            {record.tailored_bullets.map((bullet, index) => (
+                              <li key={`${record.id}-bullet-${index}`}>{bullet}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="mt-1 text-sm text-neutral-500">未保存定制简历要点</p>
+                        )}
+                      </div>
+                    </div>
+                  </details>
                 </div>
 
                 <p className="mt-4 text-sm text-neutral-500">
@@ -354,6 +425,27 @@ export default async function DashboardPage({
           })}
         </section>
       </div>
+      <Script id="dashboard-copy-actions" strategy="afterInteractive">{`
+        (() => {
+          if (window.__dashboardCopyActionsBound) return;
+          window.__dashboardCopyActionsBound = true;
+          document.addEventListener("click", async (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
+            const button = target.closest("button[data-copy-text]");
+            if (!(button instanceof HTMLButtonElement)) return;
+            const text = button.dataset.copyText;
+            if (!text) return;
+            const originalLabel = button.dataset.copyLabel || button.textContent || "复制";
+            button.dataset.copyLabel = originalLabel;
+            await navigator.clipboard.writeText(text);
+            button.textContent = "已复制";
+            window.setTimeout(() => {
+              button.textContent = button.dataset.copyLabel || "复制";
+            }, 1200);
+          });
+        })();
+      `}</Script>
     </main>
   );
 }
