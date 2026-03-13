@@ -1,5 +1,6 @@
 ﻿import Link from "next/link";
 import OpenAI from "openai";
+import Script from "next/script";
 
 const JD_PREVIEW_LENGTH = 400;
 const RESUME_PREVIEW_LENGTH = 320;
@@ -348,6 +349,159 @@ type ModelResult = {
   rewritePairs: ModelRewritePair[];
 };
 
+const REWRITE_PROTECTED_TERMS = [
+  "java",
+  "c++",
+  "c#",
+  "python",
+  "javascript",
+  "typescript",
+  "react",
+  "vue",
+  "angular",
+  "spring",
+  "spring boot",
+  "mysql",
+  "postgresql",
+  "postgres",
+  "redis",
+  "kafka",
+  "docker",
+  "kubernetes",
+  "aws",
+  "dynamodb",
+  "s3",
+  "volcengine",
+  "postman",
+  "pytorch",
+  "tensorflow",
+  "rllib",
+  "opencv",
+  "spark",
+  "flink",
+  "hadoop",
+  "computer vision",
+  "cv",
+  "nlp",
+  "llm",
+  "backend",
+  "frontend",
+  "trading",
+  "计算机视觉",
+  "后端",
+  "前端",
+  "交易",
+  "强化学习",
+  "机器学习",
+] as const;
+
+const REWRITE_RESULT_SIGNALS = [
+  "latency",
+  "throughput",
+  "accuracy",
+  "precision",
+  "recall",
+  "fps",
+  "qps",
+  "tps",
+  "gpu",
+  "gpus",
+  "stream",
+  "streams",
+  "rows",
+  "records",
+  "users",
+  "latencies",
+  "p95",
+  "p99",
+  "ms",
+  "秒",
+  "延迟",
+  "吞吐",
+  "准确率",
+  "召回",
+  "精确率",
+  "流",
+  "路",
+  "行",
+  "条",
+  "成本",
+  "效率",
+  "错误率",
+  "响应时间",
+] as const;
+
+function enforceEnglishRewrite(rewritten: string) {
+  const trimmed = rewritten.trim();
+  if (!trimmed) return "";
+  if (/[A-Za-z]/.test(trimmed) && !/[\u4e00-\u9fff]/.test(trimmed)) return rewritten;
+  return "Delivered relevant work with clear ownership, execution details, and measurable results.";
+}
+
+function collectProtectedTerms(text: string) {
+  const lower = text.toLowerCase();
+  const found = new Set<string>();
+
+  for (const term of REWRITE_PROTECTED_TERMS) {
+    if (lower.includes(term.toLowerCase())) found.add(term.toLowerCase());
+  }
+
+  const productishTokens = text.match(/\b(?=\w*[A-Z])[\w.-]{2,}\b/g) ?? [];
+  for (const token of productishTokens) {
+    found.add(token.toLowerCase());
+  }
+
+  return [...found];
+}
+
+function hasMetricOrResultSignal(text: string) {
+  if (/\d/.test(text)) return true;
+  const lower = text.toLowerCase();
+  return REWRITE_RESULT_SIGNALS.some((signal) => lower.includes(signal.toLowerCase()));
+}
+
+function isOverGenericRewrite(text: string) {
+  return (
+    /delivered relevant work|clear ownership|execution details|measurable results|worked on|responsible for|participated in/i.test(
+      text
+    ) || /cross-functional|business goals|end-to-end|various/i.test(text)
+  );
+}
+
+function selectSafeRewrite(original: string, rewritten: string) {
+  const originalText = original.trim();
+  const englishRewrite = enforceEnglishRewrite(rewritten).trim();
+  if (!originalText || !englishRewrite) return originalText;
+
+  const originalTerms = collectProtectedTerms(originalText);
+  const rewriteTerms = collectProtectedTerms(englishRewrite);
+  const overlappingTerms = originalTerms.filter((term) => rewriteTerms.includes(term));
+  const introducedTerms = rewriteTerms.filter((term) => !originalTerms.includes(term));
+
+  let guardReason = "";
+  if (introducedTerms.length > 0) {
+    guardReason = "introduced_terms";
+  } else if (hasMetricOrResultSignal(originalText) && !hasMetricOrResultSignal(englishRewrite)) {
+    guardReason = "dropped_metrics";
+  } else if (originalTerms.length > 0 && overlappingTerms.length === 0) {
+    guardReason = "changed_domain";
+  } else if (originalTerms.length >= 2 && overlappingTerms.length * 2 < originalTerms.length) {
+    guardReason = "dropped_technical_signals";
+  } else if (
+    englishRewrite.length < Math.max(24, Math.floor(originalText.length * 0.7)) &&
+    isOverGenericRewrite(englishRewrite)
+  ) {
+    guardReason = "too_generic";
+  }
+
+  if (guardReason) {
+    console.log("REWRITE_GUARD_REJECTED:", guardReason, { original: originalText, rewritten: englishRewrite });
+    return originalText;
+  }
+
+  return englishRewrite;
+}
+
 function normalizeModelResult(x: unknown): ModelResult | null {
   if (!x || typeof x !== "object") return null;
   const obj = x as Record<string, unknown>;
@@ -366,7 +520,10 @@ function normalizeModelResult(x: unknown): ModelResult | null {
     .map((p) => p as Record<string, unknown>)
     .map((p) => ({
       original: typeof p.original === "string" ? p.original : "",
-      rewritten: typeof p.rewritten === "string" ? p.rewritten : "",
+      rewritten:
+        typeof p.original === "string" && typeof p.rewritten === "string"
+          ? selectSafeRewrite(p.original, p.rewritten)
+          : "",
       idea: typeof p.idea === "string" ? p.idea : "",
     }))
     .filter((p) => p.original && p.rewritten && p.idea);
@@ -391,7 +548,10 @@ async function getModelTailoring({
   resume: string;
 }): Promise<ModelResult | null> {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) {
+    console.log("OPENAI_CALL_SKIPPED_MISSING_API_KEY");
+    return null;
+  }
 
   const client = new OpenAI({ apiKey });
   console.log("OPENAI_KEY_PREFIX:", apiKey?.slice(0, 12));
@@ -448,7 +608,7 @@ async function getModelTailoring({
         {
           role: "system",
           content:
-            "你是中文简历定制专家。你将基于职位描述（JD）与用户基础简历，给出结构化的定制建议与改写对照。要求内容真实可信、可执行，避免空泛口号。不要编造具体公司/数据；如需数字，用 X%/X 天 等占位符。",
+            "你是中文简历定制专家。你将基于职位描述（JD）与用户基础简历，给出结构化的定制建议与改写对照。要求内容真实可信、可执行，避免空泛口号。不要编造具体公司/数据；如需数字，用 X%/X 天 等占位符。rewritePairs 中 original 可保留原文，idea 可用中文，但 rewritten 必须始终使用英文。改写时只能强化原有事实，不得引入原句中没有的新技术、语言、框架、项目领域或成果；原句里的工具、指标、规模、结果应尽量保留。",
         },
         {
           role: "user",
@@ -466,10 +626,18 @@ async function getModelTailoring({
 
     console.log("OPENAI_RAW_RESPONSE:", JSON.stringify(response, null, 2));
 
+    const typedResponse = response as {
+      output_parsed?: unknown;
+      output?: Array<{
+        content?: Array<{ parsed?: unknown; text?: string; type?: string }>;
+      }>;
+    };
+
+    const outputText = typedResponse.output?.[0]?.content?.find((c) => c?.type === "output_text")?.text;
     const parsedPayload =
-      (response as any).output_parsed ??
-      (response as any).output?.[0]?.content?.find((c: any) => c?.parsed)?.parsed ??
-      (response as any).output?.[0]?.content?.find((c: any) => c?.type === "output_text")?.parsed;
+      typedResponse.output_parsed ??
+      typedResponse.output?.[0]?.content?.find((c) => c?.parsed)?.parsed ??
+      (typeof outputText === "string" ? JSON.parse(outputText) : undefined);
 
     console.log("OPENAI_PARSED_PAYLOAD:", JSON.stringify(parsedPayload, null, 2));
 
@@ -484,6 +652,7 @@ async function getModelTailoring({
     return parsed;
   } catch (error) {
     console.error("OPENAI_CALL_ERROR:", error);
+    console.error("OPENAI_CALL_ERROR_MESSAGE:", error instanceof Error ? error.message : String(error));
     return null;
   }
 }
@@ -655,9 +824,18 @@ export default async function TailorResultPage({
                 </p>
 
                 <p className="mt-3 text-xs text-neutral-500">改写后表述</p>
-                <p className="mt-1 text-sm text-neutral-100 whitespace-pre-wrap">
-                  {p.rewritten}
-                </p>
+                <div className="mt-1 flex items-start justify-between gap-3">
+                  <p className="text-sm text-neutral-100 whitespace-pre-wrap">
+                    {p.rewritten}
+                  </p>
+                  <button
+                    type="button"
+                    data-copy-text={p.rewritten}
+                    className="shrink-0 rounded-lg border border-neutral-700 px-2 py-1 text-xs text-neutral-300 transition hover:border-neutral-500 hover:text-white"
+                  >
+                    复制
+                  </button>
+                </div>
 
                 <p className="mt-3 text-xs text-neutral-500">改写思路</p>
                 <p className="mt-1 text-sm text-neutral-400">{p.idea}</p>
@@ -689,13 +867,31 @@ export default async function TailorResultPage({
             </div>
             <div>
               <p className="text-xs font-medium text-neutral-400">邮件主题</p>
-              <p className="mt-1 text-sm text-neutral-100">{email.subject}</p>
+              <div className="mt-1 flex items-start justify-between gap-3">
+                <p className="text-sm text-neutral-100">{email.subject}</p>
+                <button
+                  type="button"
+                  data-copy-text={email.subject}
+                  className="shrink-0 rounded-lg border border-neutral-700 px-2 py-1 text-xs text-neutral-300 transition hover:border-neutral-500 hover:text-white"
+                >
+                  复制
+                </button>
+              </div>
             </div>
             <div>
               <p className="text-xs font-medium text-neutral-400">邮件正文</p>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-neutral-300">
-                {email.body}
-              </p>
+              <div className="mt-1 flex items-start justify-between gap-3">
+                <p className="whitespace-pre-wrap text-sm text-neutral-300">
+                  {email.body}
+                </p>
+                <button
+                  type="button"
+                  data-copy-text={email.body}
+                  className="shrink-0 rounded-lg border border-neutral-700 px-2 py-1 text-xs text-neutral-300 transition hover:border-neutral-500 hover:text-white"
+                >
+                  复制
+                </button>
+              </div>
             </div>
           </div>
         </section>
@@ -723,6 +919,27 @@ export default async function TailorResultPage({
           </Link>
         </div>
       </div>
+      <Script id="tailor-copy-actions" strategy="afterInteractive">{`
+        (() => {
+          if (window.__tailorCopyActionsBound) return;
+          window.__tailorCopyActionsBound = true;
+          document.addEventListener("click", async (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
+            const button = target.closest("button[data-copy-text]");
+            if (!(button instanceof HTMLButtonElement)) return;
+            const text = button.dataset.copyText;
+            if (!text) return;
+            const originalLabel = button.dataset.copyLabel || button.textContent || "复制";
+            button.dataset.copyLabel = originalLabel;
+            await navigator.clipboard.writeText(text);
+            button.textContent = "已复制";
+            window.setTimeout(() => {
+              button.textContent = button.dataset.copyLabel || "复制";
+            }, 1200);
+          });
+        })();
+      `}</Script>
     </main>
   );
 }
