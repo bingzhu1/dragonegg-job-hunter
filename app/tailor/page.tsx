@@ -95,15 +95,13 @@ function buildOutreachEmail({
   if (language === "en") {
     return {
       languageLabel: "英文",
-      subject: "Application for the role — tailored resume attached",
+      subject: "Application for the role — tailor resume",
       body: [
         "Hi Hiring Team,",
         "",
-        "I’m applying for this position. I reviewed the job description and tailored my resume to highlight relevant experience, especially around " +
-          focus +
-          ".",
+        "I’m applying for this position. I reviewed the job description and tailored my resume to highlight relevant experience, especially around " +'[focus]' + "."   
+          ,
         "",
-        "If helpful, I can share a short summary of the most relevant projects and results (metrics available where appropriate).",
         "",
         "Thanks for your time,",
         "Your Name",
@@ -119,8 +117,7 @@ function buildOutreachEmail({
     body: [
       "您好，招聘团队：",
       "",
-      "我想应聘该岗位。我已阅读职位描述，并根据 JD 调整了简历，重点突出与 " +
-        focus +
+      "我想应聘该岗位。我已阅读职位描述，并根据 JD 调整了简历，重点突出与 " +'[focus]' +
         " 相关的经历与成果。",
       "",
       "如有需要，我也可以进一步补充最匹配的项目说明与结果指标（可用 X%/X 天等占位描述）。",
@@ -179,11 +176,11 @@ function analyzeJd(jd: string, keywords: string[], resume: string) {
   const bonus: string[] = [];
 
   // 关键词 -> 必备要求（偏可信、可执行）
-  if (keywords.includes("Python")) required.push("具备 Python 编程与脚本/数据处理能力");
-  if (keywords.includes("SQL")) required.push("能够使用 SQL 完成查询、指标口径与数据校验");
-  if (keywords.includes("机器学习 / ML")) required.push("理解机器学习基本流程（训练/评估/上线监控）");
-  if (keywords.includes("数据")) required.push("具备数据分析意识，能用指标描述结果");
-  if (keywords.includes("前端 / React")) required.push("熟悉前端工程化与 React 组件化开发");
+  if (keywords.includes("Python")) required.push("具备编程与脚本/数据处理能力");
+  if (keywords.includes("SQL")) required.push("能够使用完成查询、指标口径与数据校验");
+  if (keywords.includes("机器学习 / ML")) required.push("理解基本流程");
+  if (keywords.includes("数据")) required.push("具备 数据分析意识，能用指标描述结果");
+  if (keywords.includes("前端 / React")) required.push("熟悉 前端工程化与 act组件化开发");
 
   // JD 常见信号词 -> 必备/加分（简单 includes 规则）
   if (text.includes("协作") || text.includes("沟通") || jd.includes("沟通")) {
@@ -265,10 +262,10 @@ function buildRewritePairs(keywords: string[], resume: string) {
   const pairs = originals.map((o, idx) => {
     const rewritten =
       idx === 0
-        ? `主导关键模块落地 ${techHint}，将需求拆解为可交付里程碑，推动上线并带来可量化结果（例如转化率 +X% / 耗时 -X%）。`
+        ? `主导关键模块落地 ，将需求拆解为可交付里程碑，推动上线并带来可量化结果（例如转化率 +X% / 耗时 -X%）。`
         : idx === 1
-          ? `基于业务目标完成分析闭环 ${techHint}：明确口径→采集/清洗→验证→产出结论，沉淀可复用模板提升效率（例如报表耗时 -X%）。`
-          : `建立问题定位与优化流程 ${techHint}：复现→定位→方案→回归，降低线上风险并提升稳定性（例如错误率 -X% / 响应时间 -X%）。`;
+          ? `基于业务目标完成分析闭环 ：明确口径→采集/清洗→验证→产出结论，沉淀可复用模板提升效率（例如报表耗时 -X%）。`
+          : `建立问题定位与优化流程 ：复现→定位→方案→回归，降低线上风险并提升稳定性（例如错误率 -X% / 响应时间 -X%）。`;
 
     const idea =
       "把“做了什么”改成“解决什么问题 + 怎么做 + 做出什么结果”，并补上具体技术点与量化指标。";
@@ -286,13 +283,13 @@ function buildMockBullets(keywords: string[], hasResume: boolean) {
     bullets.push(
       hasResume
         ? "把简历里与 Python 相关的经历改写为“解决的问题 + 关键实现 + 结果”，并补充可量化指标（效率/成本/时长）。"
-        : "建议补充一条 Python 相关经历（脚本/自动化/数据处理），并用数字描述效果。"
+        : "建议一条 Python 相关经历（脚本/自动化/数据处理），并用数字描述效果。"
     );
   }
   if (keywords.includes("SQL")) {
     bullets.push(
       hasResume
-        ? "将数据相关经历突出 SQL：复杂查询、指标口径对齐、数据校验与查询性能优化（索引/分区）。"
+        ? "将数据相关经历改写为“解决的问题 + 关键实现 + 结果”，并补充可量化指标（效率/成本/时长）。"
         : "建议补充 SQL 能力：复杂查询与数据质量校验，并说明你如何优化查询性能。"
     );
   }
@@ -313,7 +310,7 @@ function buildMockBullets(keywords: string[], hasResume: boolean) {
   if (keywords.includes("前端 / React")) {
     bullets.push(
       hasResume
-        ? "将前端项目改写为可复用的要点：React 组件化、状态管理、性能优化（首屏/拆包/缓存/渲染排查）+ 产出指标。"
+        ? "将前端项目改写为要点：React 组件化、状态管理、性能优化（首屏/拆包/缓存/渲染排查）+ 产出指标。"
         : "建议补充前端项目要点：React 组件化与性能优化，并写清你负责的关键模块。"
     );
   }
@@ -608,7 +605,7 @@ async function getModelTailoring({
         {
           role: "system",
           content:
-            "你是中文简历定制专家。你将基于职位描述（JD）与用户基础简历，给出结构化的定制建议与改写对照。要求内容真实可信、可执行，避免空泛口号。不要编造具体公司/数据；如需数字，用 X%/X 天 等占位符。rewritePairs 中 original 可保留原文，idea 可用中文，但 rewritten 必须始终使用英文。改写时只能强化原有事实，不得引入原句中没有的新技术、语言、框架、项目领域或成果；原句里的工具、指标、规模、结果应尽量保留。",
+            "你是中文简历定制。你将基于职位描述（JD）与用户基础简历，给出结构化的建议与改写对照具体公司/数据rewritePairs 中 original 可修改原文，idea 可用中文，但 rewritten 必须始终使用英文",
         },
         {
           role: "user",

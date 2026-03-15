@@ -34,3 +34,5 @@ on public.applications
 for update
 using (true)
 with check (true);
+
+drop TABLE if exists public.application_history cascade;
