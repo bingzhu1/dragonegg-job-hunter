@@ -1,6 +1,9 @@
 ﻿import Link from "next/link";
 import OpenAI from "openai";
 import Script from "next/script";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { insertApplication } from "@/lib/supabase";
 
 const JD_PREVIEW_LENGTH = 400;
 const RESUME_PREVIEW_LENGTH = 320;
@@ -660,6 +663,17 @@ export default async function TailorResultPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const params = await searchParams;
+  const companyRaw = params.company;
+  const userCompany =
+    typeof companyRaw === "string" ? companyRaw.trim() : "";
+  const roleRaw = params.role;
+  const titleRaw = params.title;
+  const userRole =
+    typeof roleRaw === "string"
+      ? roleRaw.trim()
+      : typeof titleRaw === "string"
+        ? titleRaw.trim()
+        : "";
   const jdRaw = params.jd;
   const jd = typeof jdRaw === "string" ? jdRaw.trim() : "";
   const resumeRaw = params.resume;
@@ -705,21 +719,43 @@ export default async function TailorResultPage({
     keywords: finalKeywords,
   });
   const packageSummary = inferApplicationPackage(jd);
-  const saveRecordHref = {
-    pathname: "/dashboard",
-    query: {
-      saved: "1",
+  const savedCompany =
+    userCompany || packageSummary.company || "未识别公司名";
+  const savedRole =
+    userRole || packageSummary.role || "未识别职位名";
+  const savedEmailLanguage = `${email.languageLabel}${
+    emailLang === "auto" ? "（自动）" : "（手动）"
+  }`;
+  const tailoredBullets = finalRewritePairs.pairs
+    .map((pair) => pair.rewritten.trim())
+    .filter(Boolean);
+
+  async function saveApplicationRecord() {
+    "use server";
+
+    const result = await insertApplication({
+      company: savedCompany,
+      role: savedRole,
+      jd,
+      resume,
+      email_language: savedEmailLanguage,
+      ai_mode: aiMode,
       status: "待申请",
-      company: packageSummary.company,
-      role: packageSummary.role,
-      emailLanguage: `${email.languageLabel}${
-        emailLang === "auto" ? "（自动）" : "（手动）"
-      }`,
-      aiMode,
-      resumeReady: finalRewritePairs.pairs.length > 0 ? "1" : "0",
-      emailReady: email.body ? "1" : "0",
-    },
-  };
+      application_link: null,
+      tailored_bullets: tailoredBullets,
+      email_subject: email.subject,
+      email_body: email.body,
+    });
+
+    if (result.error) {
+      redirect(
+        `/dashboard?saveError=1&message=${encodeURIComponent(result.error)}`,
+      );
+    }
+
+    revalidatePath("/dashboard");
+    redirect("/dashboard?saved=1");
+  }
 
   return (
     <main className="min-h-screen bg-neutral-950 px-6 py-16 text-neutral-100">
@@ -902,12 +938,14 @@ export default async function TailorResultPage({
 
 
         <div className="mt-8 flex gap-4">
-          <Link
-            href={saveRecordHref}
-            className="inline-block rounded-xl bg-white px-6 py-3 text-sm font-semibold text-black shadow-lg shadow-white/10 transition hover:bg-neutral-100 hover:shadow-white/20"
-          >
-            保存到投递记录
-          </Link>
+          <form action={saveApplicationRecord}>
+            <button
+              type="submit"
+              className="inline-block rounded-xl bg-white px-6 py-3 text-sm font-semibold text-black shadow-lg shadow-white/10 transition hover:bg-neutral-100 hover:shadow-white/20"
+            >
+              保存到投递记录
+            </button>
+          </form>
           <Link
             href="/dashboard"
             className="inline-block rounded-xl border border-neutral-700 px-6 py-3 text-sm font-semibold text-neutral-200 transition hover:border-neutral-500 hover:text-white"

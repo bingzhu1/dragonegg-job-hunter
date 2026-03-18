@@ -1,5 +1,3 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-
 export type ApplicationStatus = "待申请" | "已投递" | "面试中";
 export type ApplicationAiMode = "real" | "fallback";
 
@@ -50,28 +48,6 @@ function getSupabaseAnonKey() {
   return process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 }
 
-function createSupabaseBrowserClient() {
-  const url = getSupabaseUrl();
-  const anonKey = getSupabaseAnonKey();
-
-  if (!url || !anonKey) {
-    return null;
-  }
-
-  return createClient(url, anonKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
-}
-
-function getClient(): SupabaseClient | null {
-  return supabase;
-}
-
-export const supabase = createSupabaseBrowserClient();
-
 export function isSupabaseConfigured() {
   return Boolean(getSupabaseUrl() && getSupabaseAnonKey());
 }
@@ -86,7 +62,6 @@ function getErrorMessage(payload: unknown, fallback: string) {
     const firstMessage = [obj.message, obj.error_description, obj.hint].find(
       (value) => typeof value === "string" && value.trim(),
     );
-
     if (typeof firstMessage === "string") {
       return firstMessage;
     }
@@ -123,7 +98,7 @@ function normalizeBullets(value: unknown): string[] {
 
   if (typeof value === "string" && value.trim()) {
     try {
-      const parsed = JSON.parse(value) as unknown;
+      const parsed = JSON.parse(value);
       return normalizeBullets(parsed);
     } catch {
       return value
@@ -138,23 +113,20 @@ function normalizeBullets(value: unknown): string[] {
 
 function normalizeApplicationRecord(value: unknown): ApplicationRecord | null {
   if (!value || typeof value !== "object") return null;
-
   const obj = value as Record<string, unknown>;
   const idValue =
     typeof obj.id === "number"
       ? obj.id
       : typeof obj.id === "string"
         ? Number(obj.id)
-        : Number.NaN;
+        : NaN;
 
-  if (!Number.isFinite(idValue)) {
-    return null;
-  }
+  if (!Number.isFinite(idValue)) return null;
 
   return {
     id: idValue,
-    company: normalizeString(obj.company),
-    role: normalizeString(obj.role),
+    company: normalizeString(obj.company, "未识别公司名"),
+    role: normalizeString(obj.role, "未识别岗位名"),
     jd: normalizeString(obj.jd),
     resume: normalizeString(obj.resume),
     email_language: normalizeString(obj.email_language, "未记录"),
@@ -168,55 +140,66 @@ function normalizeApplicationRecord(value: unknown): ApplicationRecord | null {
   };
 }
 
-function normalizeApplicationInsert(application: ApplicationInsert) {
-  return {
-    company: normalizeString(application.company),
-    role: normalizeString(application.role),
-    jd: normalizeString(application.jd),
-    resume: normalizeString(application.resume),
-    email_language: normalizeString(application.email_language, "未记录"),
-    ai_mode: normalizeAiMode(application.ai_mode),
-    status: normalizeStatus(application.status),
-    application_link: normalizeString(application.application_link),
-    tailored_bullets: normalizeBullets(application.tailored_bullets),
-    email_subject: normalizeString(application.email_subject),
-    email_body: normalizeString(application.email_body),
-  };
-}
-
-function ensureClient<T>(): SupabaseResult<T> | null {
-  if (getClient()) {
-    return null;
-  }
-
-  return {
-    data: null,
-    error: getSupabaseConfigMessage(),
-  };
-}
-
-export async function listApplications(): Promise<SupabaseResult<ApplicationRecord[]>> {
-  const missingClient = ensureClient<ApplicationRecord[]>();
-  if (missingClient) return missingClient;
-
-  const client = getClient();
-  if (!client) {
+async function requestSupabase<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<SupabaseResult<T>> {
+  if (!isSupabaseConfigured()) {
     return { data: null, error: getSupabaseConfigMessage() };
   }
 
-  const { data, error } = await client
-    .from("applications")
-    .select(APPLICATION_SELECT)
-    .order("created_at", { ascending: false });
+  try {
+    const response = await fetch(`${getSupabaseUrl()}/rest/v1/${path}`, {
+      ...init,
+      cache: "no-store",
+      headers: {
+        apikey: getSupabaseAnonKey(),
+        Authorization: `Bearer ${getSupabaseAnonKey()}`,
+        "Content-Type": "application/json",
+        ...init?.headers,
+      },
+    });
 
-  if (error) {
-    return {
-      data: null,
-      error: getErrorMessage(error, "Supabase 请求失败，请检查表结构与权限配置。"),
-    };
+    const responseText = await response.text();
+    let payload: unknown = null;
+
+    if (responseText) {
+      try {
+        payload = JSON.parse(responseText) as unknown;
+      } catch {
+        payload = responseText;
+      }
+    }
+
+    if (!response.ok) {
+      return {
+        data: null,
+        error: getErrorMessage(payload, "Supabase 请求失败，请检查表结构与权限配置。"),
+      };
+    }
+
+    return { data: payload as T, error: null };
+  } catch (error) {
+    const message =
+      error instanceof Error && error.message
+        ? error.message
+        : "无法连接到 Supabase，请检查项目地址、Key 和网络环境。";
+
+    return { data: null, error: message };
+  }
+}
+
+export async function listApplications(): Promise<SupabaseResult<ApplicationRecord[]>> {
+  const result = await requestSupabase<unknown[]>(
+    `applications?select=${APPLICATION_SELECT}&order=created_at.desc`,
+  );
+
+  if (result.error) {
+    return { data: null, error: result.error };
   }
 
-  const records = (data ?? [])
+  const rows = Array.isArray(result.data) ? result.data : [];
+  const records = rows
     .map((row) => normalizeApplicationRecord(row))
     .filter((row): row is ApplicationRecord => Boolean(row));
 
@@ -226,29 +209,21 @@ export async function listApplications(): Promise<SupabaseResult<ApplicationReco
 export async function insertApplication(
   application: ApplicationInsert,
 ): Promise<SupabaseResult<ApplicationRecord>> {
-  const missingClient = ensureClient<ApplicationRecord>();
-  if (missingClient) return missingClient;
+  const result = await requestSupabase<unknown[]>("applications", {
+    method: "POST",
+    headers: {
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify([application]),
+  });
 
-  const client = getClient();
-  if (!client) {
-    return { data: null, error: getSupabaseConfigMessage() };
+  if (result.error) {
+    return { data: null, error: result.error };
   }
 
-  const payload = normalizeApplicationInsert(application);
-  const { data, error } = await client
-    .from("applications")
-    .insert(payload)
-    .select(APPLICATION_SELECT)
-    .single();
+  const firstRow = Array.isArray(result.data) ? result.data[0] : null;
+  const record = normalizeApplicationRecord(firstRow);
 
-  if (error) {
-    return {
-      data: null,
-      error: getErrorMessage(error, "Supabase 保存失败，请检查表结构与权限配置。"),
-    };
-  }
-
-  const record = normalizeApplicationRecord(data);
   if (!record) {
     return {
       data: null,
@@ -263,34 +238,18 @@ export async function updateApplicationStatus(
   id: number,
   status: ApplicationStatus,
 ): Promise<SupabaseResult<null>> {
-  const missingClient = ensureClient<null>();
-  if (missingClient) return missingClient;
+  const result = await requestSupabase<unknown>(`applications?id=eq.${id}`, {
+    method: "PATCH",
+    headers: {
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify({ status }),
+  });
 
-  const client = getClient();
-  if (!client) {
-    return { data: null, error: getSupabaseConfigMessage() };
-  }
-
-  const { data, error } = await client
-    .from("applications")
-    .update({ status: normalizeStatus(status) })
-    .eq("id", id)
-    .select("id")
-    .maybeSingle();
-
-  if (error) {
-    return {
-      data: null,
-      error: getErrorMessage(error, "Supabase 状态更新失败，请稍后重试。"),
-    };
-  }
-
-  if (!data) {
-    return {
-      data: null,
-      error: "没有找到要更新的申请记录。",
-    };
+  if (result.error) {
+    return { data: null, error: result.error };
   }
 
   return { data: null, error: null };
 }
+
