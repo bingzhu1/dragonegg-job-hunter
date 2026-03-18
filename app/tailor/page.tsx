@@ -674,6 +674,14 @@ export default async function TailorResultPage({
       : typeof titleRaw === "string"
         ? titleRaw.trim()
         : "";
+  const applicationLinkRaw = params.applicationLink;
+  const applicationLinkSnakeRaw = params.application_link;
+  const userApplicationLink =
+    typeof applicationLinkRaw === "string"
+      ? applicationLinkRaw.trim()
+      : typeof applicationLinkSnakeRaw === "string"
+        ? applicationLinkSnakeRaw.trim()
+        : "";
   const jdRaw = params.jd;
   const jd = typeof jdRaw === "string" ? jdRaw.trim() : "";
   const resumeRaw = params.resume;
@@ -741,7 +749,7 @@ export default async function TailorResultPage({
       email_language: savedEmailLanguage,
       ai_mode: aiMode,
       status: "待申请",
-      application_link: null,
+      application_link: userApplicationLink || null,
       tailored_bullets: tailoredBullets,
       email_subject: email.subject,
       email_body: email.body,
