@@ -6,10 +6,16 @@
     "dev": "next dev -H 127.0.0.1 -p 4000",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "jobs:normalize": "tsx scripts/normalize_jobs.ts",
+    "jobs:filter": "tsx scripts/filter_jobs.ts",
+    "jobs:sync": "tsx scripts/sync_jobs_to_supabase.ts",
+    "jobs:phase1": "tsx scripts/run_phase1.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.1",
+    "csv-parse": "^6.2.0",
+    "csv-stringify": "^6.7.0",
     "next": "16.1.6",
     "openai": "^5.0.0",
     "react": "19.2.3",
@@ -23,6 +29,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }
