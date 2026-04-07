@@ -15,6 +15,7 @@ export type ApplicationRecord = {
   email_subject: string;
   email_body: string;
   created_at: string;
+  job_id: number | null;
 };
 
 export type ApplicationInsert = {
@@ -29,6 +30,7 @@ export type ApplicationInsert = {
   tailored_bullets: string[];
   email_subject: string;
   email_body: string;
+  job_id?: number | null;
 };
 
 type SupabaseResult<T> = {
@@ -37,7 +39,7 @@ type SupabaseResult<T> = {
 };
 
 const APPLICATION_SELECT =
-  "id,company,role,jd,resume,email_language,ai_mode,status,application_link,tailored_bullets,email_subject,email_body,created_at";
+  "id,company,role,jd,resume,email_language,ai_mode,status,application_link,tailored_bullets,email_subject,email_body,created_at,job_id";
 const statusOptions: ApplicationStatus[] = ["待申请", "已投递", "面试中"];
 
 function getSupabaseUrl() {
@@ -123,6 +125,13 @@ function normalizeApplicationRecord(value: unknown): ApplicationRecord | null {
 
   if (!Number.isFinite(idValue)) return null;
 
+  const jobIdValue =
+    typeof obj.job_id === "number"
+      ? obj.job_id
+      : typeof obj.job_id === "string" && obj.job_id
+        ? Number(obj.job_id)
+        : null;
+
   return {
     id: idValue,
     company: normalizeString(obj.company, "未识别公司名"),
@@ -137,6 +146,7 @@ function normalizeApplicationRecord(value: unknown): ApplicationRecord | null {
     email_subject: normalizeString(obj.email_subject),
     email_body: normalizeString(obj.email_body),
     created_at: normalizeString(obj.created_at),
+    job_id: jobIdValue !== null && Number.isFinite(jobIdValue) ? jobIdValue : null,
   };
 }
 
@@ -253,3 +263,102 @@ export async function updateApplicationStatus(
   return { data: null, error: null };
 }
 
+export type JobRecord = {
+  id: number;
+  job_key: string;
+  company: string;
+  role_title: string;
+  location: string;
+  role_url: string;
+  short_summary: string;
+  required_keywords: string[];
+  preferred_keywords: string[];
+  priority: string;
+  fit_score: number;
+  decision: "accepted" | "maybe" | "rejected";
+  status: string;
+  collected_at: string;
+};
+
+function normalizeJobRecord(value: unknown): JobRecord | null {
+  if (!value || typeof value !== "object") return null;
+  const obj = value as Record<string, unknown>;
+  const idValue =
+    typeof obj.id === "number"
+      ? obj.id
+      : typeof obj.id === "string"
+        ? Number(obj.id)
+        : NaN;
+
+  if (!Number.isFinite(idValue)) return null;
+
+  const fitScoreValue =
+    typeof obj.fit_score === "number"
+      ? obj.fit_score
+      : typeof obj.fit_score === "string"
+        ? Number(obj.fit_score)
+        : 0;
+
+  const normalizeStringArray = (input: unknown) =>
+    Array.isArray(input)
+      ? input.filter((item) => typeof item === "string").map((item) => String(item))
+      : [];
+
+  const decision =
+    obj.decision === "accepted" || obj.decision === "maybe" || obj.decision === "rejected"
+      ? obj.decision
+      : "maybe";
+
+  return {
+    id: idValue,
+    job_key: normalizeString(obj.job_key),
+    company: normalizeString(obj.company),
+    role_title: normalizeString(obj.role_title),
+    location: normalizeString(obj.location),
+    role_url: normalizeString(obj.role_url),
+    short_summary: normalizeString(obj.short_summary),
+    required_keywords: normalizeStringArray(obj.required_keywords),
+    preferred_keywords: normalizeStringArray(obj.preferred_keywords),
+    priority: normalizeString(obj.priority),
+    fit_score: Number.isFinite(fitScoreValue) ? fitScoreValue : 0,
+    decision,
+    status: normalizeString(obj.status),
+    collected_at: normalizeString(obj.collected_at),
+  };
+}
+
+export async function updateJobStatus(
+  id: number,
+  status: "new" | "saved" | "dismissed" | "applied",
+): Promise<SupabaseResult<null>> {
+  const result = await requestSupabase<unknown>(`jobs?id=eq.${id}`, {
+    method: "PATCH",
+    headers: {
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify({ status }),
+  });
+
+  if (result.error) {
+    return { data: null, error: result.error };
+  }
+
+  return { data: null, error: null };
+}
+
+export async function listJobs(): Promise<SupabaseResult<JobRecord[]>> {
+  const result = await requestSupabase<unknown[]>(
+    "jobs?select=id,job_key,company,role_title,location,role_url,short_summary,required_keywords,preferred_keywords,priority,fit_score,decision,status,collected_at&decision=in.(accepted,maybe)&order=fit_score.desc",
+  );
+
+  if (result.error) {
+    return { data: null, error: result.error };
+  }
+
+  const rows = Array.isArray(result.data) ? result.data : [];
+  const records = rows
+    .map((row) => normalizeJobRecord(row))
+    .filter((row): row is JobRecord => Boolean(row));
+
+  return { data: records, error: null };
+}

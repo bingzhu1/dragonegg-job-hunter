@@ -6,6 +6,8 @@ Hard rules:
 - Prefer company websites and ATS pages such as Greenhouse, Lever, Ashby, Workday, or direct careers pages.
 - Focus on early-career or new-grad-friendly roles when possible.
 - Skip clearly senior-only roles unless they explicitly mention new grad, early career, or 0-2 years experience.
+- For each company website read the entire html to aviod missing any thing. 
+- Give an at least 5000 word of thought about target company and how it fit my background before you make decision.
 
 Target role types:
 - AI Engineer

@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import Script from "next/script";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { insertApplication } from "@/lib/supabase";
+import { insertApplication, updateJobStatus } from "@/lib/supabase";
 
 const JD_PREVIEW_LENGTH = 400;
 const RESUME_PREVIEW_LENGTH = 320;
@@ -687,6 +687,11 @@ export default async function TailorResultPage({
   const resumeRaw = params.resume;
   const resume = typeof resumeRaw === "string" ? resumeRaw.trim() : "";
   const hasResume = Boolean(resume);
+  const jobIdRaw = params.job_id;
+  const sourceJobId =
+    typeof jobIdRaw === "string" && /^\d+$/.test(jobIdRaw)
+      ? Number(jobIdRaw)
+      : null;
   const emailLangRaw = params.emailLang;
   const emailLang = typeof emailLangRaw === "string" ? emailLangRaw : "auto";
 
@@ -753,12 +758,17 @@ export default async function TailorResultPage({
       tailored_bullets: tailoredBullets,
       email_subject: email.subject,
       email_body: email.body,
+      job_id: sourceJobId ?? null,
     });
 
     if (result.error) {
       redirect(
         `/dashboard?saveError=1&message=${encodeURIComponent(result.error)}`,
       );
+    }
+
+    if (sourceJobId) {
+      await updateJobStatus(sourceJobId, "applied");
     }
 
     revalidatePath("/dashboard");

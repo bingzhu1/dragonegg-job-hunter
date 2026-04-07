@@ -11,7 +11,8 @@ create table if not exists public.applications (
   tailored_bullets jsonb not null default '[]'::jsonb,
   email_subject text not null default '',
   email_body text not null default '',
-  created_at timestamptz not null default timezone('utc', now())
+  created_at timestamptz not null default timezone('utc', now()),
+  job_id bigint references public.jobs(id) on delete set null
 );
 
 alter table public.applications enable row level security;

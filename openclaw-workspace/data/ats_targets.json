@@ -1,0 +1,59 @@
+{
+  "_comment": "ATS target config for collect_jobs_live.ts. Each entry maps a company to its ATS type and token. Verify token at: https://boards.greenhouse.io/{token} or https://jobs.lever.co/{token}",
+  "companies": [
+    {
+      "company": "Anthropic",
+      "ats_type": "greenhouse",
+      "ats_token": "anthropic",
+      "priority": "A"
+    },
+    {
+      "company": "Fireworks AI",
+      "ats_type": "greenhouse",
+      "ats_token": "fireworksai",
+      "priority": "A"
+    },
+    {
+      "company": "Applied Intuition",
+      "ats_type": "greenhouse",
+      "ats_token": "appliedintuition",
+      "priority": "A"
+    },
+    {
+      "company": "Cohere",
+      "ats_type": "greenhouse",
+      "ats_token": "cohere",
+      "priority": "A"
+    },
+    {
+      "company": "Scale AI",
+      "ats_type": "greenhouse",
+      "ats_token": "scaleai",
+      "priority": "A"
+    },
+    {
+      "company": "Mistral AI",
+      "ats_type": "greenhouse",
+      "ats_token": "mistral",
+      "priority": "B"
+    },
+    {
+      "company": "Hugging Face",
+      "ats_type": "lever",
+      "ats_token": "huggingface",
+      "priority": "A"
+    },
+    {
+      "company": "Together AI",
+      "ats_type": "greenhouse",
+      "ats_token": "togetherai",
+      "priority": "B"
+    },
+    {
+      "company": "Weights & Biases",
+      "ats_type": "lever",
+      "ats_token": "wandb",
+      "priority": "B"
+    }
+  ]
+}

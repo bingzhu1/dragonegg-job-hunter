@@ -10,7 +10,11 @@
     "jobs:normalize": "tsx scripts/normalize_jobs.ts",
     "jobs:filter": "tsx scripts/filter_jobs.ts",
     "jobs:sync": "tsx scripts/sync_jobs_to_supabase.ts",
-    "jobs:phase1": "tsx scripts/run_phase1.ts"
+    "jobs:phase1": "tsx scripts/run_phase1.ts",
+    "jobs:collect": "tsx scripts/collect_jobs_live.ts",
+    "jobs:evaluate": "tsx scripts/evaluate_jobs.ts",
+    "jobs:evaluate:all": "tsx scripts/evaluate_jobs.ts --all",
+    "jobs:daily": "tsx scripts/run_jobs_daily.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.1",
